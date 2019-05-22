@@ -172,12 +172,16 @@ def argument_parser():
     
     parser.add_argument("-shp", required=True, help="Input file path for the shapefile", dest="shapefilePath")    
     parser.add_argument("-s", required=True, help="Input SRID number", dest="srid")    
-    parser.add_argument("-p", required=True, type=int, help="port number of citusDB", dest="port")   
+    
     parser.add_argument("-t", required=True, type=str, help="Name of CituSDB table", dest="tableName")
     parser.add_argument("-f", required=False, type=str, help="Field Name for sharded table", dest="shardKey")
     parser.add_argument("-n", required=False, type=str, help="Number of partitions", dest="partitions")
+    #All of the required connection informaiton
     parser.add_argument("-d", required=True, type=str, help="Name of database", dest="db")
-    parser.add_argument("-o", required=False, type=str, help="The file path of the csv", dest="csv")
+    parser.add_argument("-host", required=True, type=str, help="Host of database", dest="host")
+    parser.add_argument("-p", required=True, type=int, help="port number of citusDB", dest="port")   
+    
+    parser.add_argument("-o", required=False, type=argparse.FileType, help="The file path of the csv", dest="csv", default=None)
 
     return parser
         
