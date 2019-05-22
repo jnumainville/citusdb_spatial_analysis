@@ -5,8 +5,10 @@ Spyder Editor
 This script/module is used to load data into CitusDB / PostgreSQL
 """
 
-import psycopg2, timeit
+import psycopg2, timeit, csv
 import subprocess
+from psycopg2 import extras
+from collections import OrderedDict
 
 
 def CreateConnection(theConnectionDict):
@@ -14,13 +16,13 @@ def CreateConnection(theConnectionDict):
     This method will get a connection. Need to make sure that the DB is set correctly.
     """
     
-    connection = psycopg2.connect(database=theConnectionDict['db'], user=theConnectionDict['user'], port=theConnectionDict['port'])
+    connection = psycopg2.connect(host=theConnectionDict['host'], database=theConnectionDict['db'], user=theConnectionDict['user'], port=theConnectionDict['port'], password='haynes')
 
     return connection
 
 def ExecuteQuery(pgCon, query):
     
-    pgCur = pgCon.cursor()
+    pgCur = extras.DictCursor(pgCon)
     try:
         pgCur.execute(query)
     except:
@@ -42,14 +44,23 @@ def CreateDistributedTable(tableName, hashFieldName):
     """
     return "SELECT create_distributed_table('{}' , '{}')".format(tableName, hashFieldName)
 
+
 def SetShardCount(databaseName, shardCount):
     """
     ALTER DATABASE research SET citus.shardcount = 12
     """
     
     return "ALTER DATABASE {} SET citus.shardcount = {}".format(databaseName, shardCount)
-    
 
+def PartitionTable(pgCon, tableName, hashFieldName, setShardPartitions):
+    """
+    Metafunction that does a few operations
+    
+    """
+    pgCur = ExecuteQuery(pgCon, setShardPartitions)
+    pgCur = ExecuteQuery(pgCon, CreateDistributedTable(tableName, hashFieldName))
+    del pgCur
+    
 def GetIndexNames(tableName):
     """
     From https://stackoverflow.com/questions/2204058/list-columns-with-indexes-in-postgresql
@@ -61,11 +72,13 @@ def GetIndexNames(tableName):
     """
     return "SELECT indexname, tablename, schemaname FROM pg_indexes WHERE tablename = '{}';".format(tableName)
 
+
 def DropIndex(indexName):
     """
     
     """
     return "DROP INDEX {};".format(indexName)
+
 
 def LoadShapefile(shapeFilePath, pgTableName, connectionDict, srid=4326):
     """
@@ -96,21 +109,109 @@ def CreateGeoIndex(tableName, indexName, geomField="geom"):
     """
     return "CREATE INDEX {} ON {} USING GIST({});".format(indexName, tableName, geomField)
 
+
 def CreateBTreeIndex(tableName, indexName, fieldName):
     """
     CREATE INDEX clicked_at_idx ON tableName ([fieldName]);
     
     fieldName is a list
     """
-    if len(fieldName) > 1: fieldName = ",".join(fieldName)
-    pass    
+    if len(fieldName) > 1 and isinstance(fieldName, str): 
+        fieldName = ",".join(fieldName)
+    elif len(fieldName) == 1 and isinstance(fieldName, list):
+        fieldName = fieldName[0]
+    else:
+        print("ERROR %s" % (fieldName))
+    
+    return "CREATE INDEX {} ON {} USING BTREE({});".format(indexName, tableName, fieldName)
 
+def CreateIndices(pgCon, indices):
+    """
+    
+    """
+    for i in indices:
+        print(i)
+        pgCur = ExecuteQuery(pgCon, i)
+        pgCur.close()
+    
 
+def RemoveIndices(pgCon, pgTable):
+    """
+    
+    """
+    
+    pgCur = ExecuteQuery(pgCon, GetIndexNames(pgTable))
+    for r in pgCur:
+        #print(r['indexname'])
+        dropIndexQuery = DropIndex(r['indexname'])
+        print(dropIndexQuery)
+        #ExecuteQuery(pgCon, dropIndexQuery)
 
-myConnection = {"host": "localhost", "db": "research", "port": 5432, "user": "david"}
+def WriteFile(filePath, theDictionary):
+    """
+    This function writes out the dictionary as csv
+    """
+    
+    thekeys = list(theDictionary.keys())
+    
+    with open(filePath, 'w') as csvFile:
+        fields = list(theDictionary[thekeys[0]].keys())
+        theWriter = csv.DictWriter(csvFile, fieldnames=fields)
+        theWriter.writeheader()
 
-LoadShapefile("E:\scidb\counties.shp", "counties_us", myConnection, 4326)
+        for k in theDictionary.keys():
+            theWriter.writerow(theDictionary[k])        
 
-#myConn = CreateConnection(myConnection)
-#myCursor = myConn.cursor()
+def argument_parser():
+    """
+    Parse arguments and return Arguments
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description= "Module for loading data into CitusDB")    
+    
+    parser.add_argument("-shp", required=True, help="Input file path for the shapefile", dest="shapefilePath")    
+    parser.add_argument("-s", required=True, help="Input SRID number", dest="srid")    
+    parser.add_argument("-p", required=True, type=int, help="port number of citusDB", dest="port")   
+    parser.add_argument("-t", required=True, type=str, help="Name of CituSDB table", dest="tableName")
+    parser.add_argument("-f", required=False, type=str, help="Field Name for sharded table", dest="shardKey")
+    parser.add_argument("-n", required=False, type=str, help="Number of partitions", dest="partitions")
+    parser.add_argument("-d", required=True, type=str, help="Name of database", dest="db")
+    parser.add_argument("-o", required=False, type=str, help="The file path of the csv", dest="csv")
+
+    return parser
+        
+
+if __name__ == '__main__':
+    args = argument_parser().parse_args()
+    myConnection = {"host": "localhost", "db": args.db, "port": args.port}
+    #myConnection = {"host": "localhost", "db": "research", "port": args.port, "user": "david"}
+    start = timeit.default_timer()
+    #LoadShapefile(args.shapefilePath, args.tableName, myConnection, args.srid)
+    stopLoadShapefile = timeit.default_timer()
+    psqlCon = CreateConnection(myConnection)
+    RemoveIndices(psqlCon, args.tableName)
+    psqlCon.commit()
+    stopRemoveIndices = timeit.default_timer()
+    shardQuery = SetShardCount(args.db, args.partitions)
+    PartitionTable(psqlCon, args.tableName, args.shardKey, shardQuery)
+    psqlCon.commit()
+    stopPartitionTable = timeit.default_timer()
+    geoIndex = CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, ) )
+    bTreeIndex = CreateBTreeIndex(args.tableName, "{}_{}_btree".format(args.tableName, args.shardKey), [args.shardKey])
+    CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
+    stopCreateIndices = timeit.default_timer()
+    psqlCon.commit()
+    
+    times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
+        ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
+        ("create_distributed_indices", stopCreateIndices)])
+    
+    print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
+    
+    if args.csv:
+        WriteFile(args.csv, times)
+    
+    psqlCon.close()
+
     
