@@ -58,7 +58,7 @@ def PartitionTable(pgCon, tableName, hashFieldName, setShardPartitions):
     
     """
     pgCur = ExecuteQuery(pgCon, setShardPartitions)
-    pgCur = ExecuteQuery(pgCon, CreateDistributedTable(tableName, hashFieldName))
+    pgCur = ExecuteQuery(pgCon, CreateDistributedTable(tableName, hashFieldName.lower()))
     del pgCur
     
 def GetIndexNames(tableName):
@@ -96,7 +96,7 @@ def LoadShapefile(shapeFilePath, pgTableName, connectionDict, srid=4326):
     finalCommand = r"%s | %s" % (shp2psqlCommand, toDBCommand)
     print(finalCommand)
     
-    p = subprocess.Popen(finalCommand, stdout=subprocess.PIPE, shell=True)
+    p = subprocess.Popen(finalCommand, shell=True)
     p.wait()
     out, err = p.communicate()
     
@@ -137,7 +137,7 @@ def CreateIndices(pgCon, indices):
 
 def RemoveIndices(pgCon, pgTable):
     """
-    
+    Remove indices
     """
     
     pgCur = ExecuteQuery(pgCon, GetIndexNames(pgTable))
@@ -145,7 +145,7 @@ def RemoveIndices(pgCon, pgTable):
         #print(r['indexname'])
         dropIndexQuery = DropIndex(r['indexname'])
         print(dropIndexQuery)
-        #ExecuteQuery(pgCon, dropIndexQuery)
+        ExecuteQuery(pgCon, dropIndexQuery)
 
 def WriteFile(filePath, theDictionary):
     """
@@ -180,18 +180,19 @@ def argument_parser():
     parser.add_argument("-d", required=True, type=str, help="Name of database", dest="db")
     parser.add_argument("-host", required=True, type=str, help="Host of database", dest="host")
     parser.add_argument("-p", required=True, type=int, help="port number of citusDB", dest="port")   
+    parser.add_argument("-u", required=True, type=str, help="db username", dest="user")
     
-    parser.add_argument("-o", required=False, type=argparse.FileType, help="The file path of the csv", dest="csv", default=None)
+    parser.add_argument("-o", required=False, type=str, help="The file path of the csv", dest="csv", default=None)
 
     return parser
         
 
 if __name__ == '__main__':
     args = argument_parser().parse_args()
-    myConnection = {"host": "localhost", "db": args.db, "port": args.port}
+    myConnection = {"host": args.host, "db": args.db, "port": args.port, "user": args.user}
     #myConnection = {"host": "localhost", "db": "research", "port": args.port, "user": "david"}
     start = timeit.default_timer()
-    #LoadShapefile(args.shapefilePath, args.tableName, myConnection, args.srid)
+    LoadShapefile(args.shapefilePath, args.tableName, myConnection, args.srid)
     stopLoadShapefile = timeit.default_timer()
     psqlCon = CreateConnection(myConnection)
     RemoveIndices(psqlCon, args.tableName)
@@ -203,7 +204,7 @@ if __name__ == '__main__':
     stopPartitionTable = timeit.default_timer()
     geoIndex = CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, ) )
     bTreeIndex = CreateBTreeIndex(args.tableName, "{}_{}_btree".format(args.tableName, args.shardKey), [args.shardKey])
-    CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
+    #CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
     stopCreateIndices = timeit.default_timer()
     psqlCon.commit()
     
@@ -212,9 +213,11 @@ if __name__ == '__main__':
         ("create_distributed_indices", stopCreateIndices)])
     
     print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
-    
+    print(times) 
     if args.csv:
         WriteFile(args.csv, times)
+
+    print(times)
     
     psqlCon.close()
 
