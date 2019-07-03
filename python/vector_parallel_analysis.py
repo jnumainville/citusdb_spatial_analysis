@@ -37,6 +37,14 @@ def CreateReferenceTable(tableName):
     
     return "SELECT create_reference_table('{}')".format(tableName)
 
+def RemoveConstaint(tableName):
+    """
+    alter table foo drop constraint foo_pkey;
+    """
+    
+    return "alter table {} drop constraint {}_pkey;".format(tableName, tableName)
+    
+ 
 
 def CreateDistributedTable(tableName, hashFieldName):
     """
@@ -139,8 +147,12 @@ def RemoveIndices(pgCon, pgTable):
     """
     Remove indices
     """
-    
+
     pgCur = ExecuteQuery(pgCon, GetIndexNames(pgTable))
+
+    constraintQuery = RemoveConstaint(pgTable)
+    ExecuteQuery(pgCon, constraintQuery)
+
     for r in pgCur:
         #print(r['indexname'])
         dropIndexQuery = DropIndex(r['indexname'])
@@ -154,13 +166,13 @@ def WriteFile(filePath, theDictionary):
     
     thekeys = list(theDictionary.keys())
     
-    with open(filePath, 'w') as csvFile:
-        fields = list(theDictionary[thekeys[0]].keys())
-        theWriter = csv.DictWriter(csvFile, fieldnames=fields)
-        theWriter.writeheader()
 
-        for k in theDictionary.keys():
-            theWriter.writerow(theDictionary[k])        
+    fields = list(theDictionary[thekeys[0]].keys())
+    theWriter = csv.DictWriter(filePath, fieldnames=fields)
+    theWriter.writeheader()
+
+    for k in theDictionary.keys():
+        theWriter.writerow(theDictionary[k])        
 
 def argument_parser():
     """
@@ -182,7 +194,7 @@ def argument_parser():
     parser.add_argument("-p", required=True, type=int, help="port number of citusDB", dest="port")   
     parser.add_argument("-u", required=True, type=str, help="db username", dest="user")
     
-    parser.add_argument("-o", required=False, type=str, help="The file path of the csv", dest="csv", default=None)
+    parser.add_argument("-o", required=False, type=argparse.FileType('w'), help="The file path of the csv", dest="csv", default=None)
 
     return parser
         
