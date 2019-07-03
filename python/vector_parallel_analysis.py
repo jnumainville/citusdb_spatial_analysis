@@ -26,7 +26,7 @@ def ExecuteQuery(pgCon, query):
     try:
         pgCur.execute(query)
     except:
-        print(query)
+        print("ERROR...", query)
     
     return pgCur
 
@@ -151,13 +151,19 @@ def RemoveIndices(pgCon, pgTable):
     pgCur = ExecuteQuery(pgCon, GetIndexNames(pgTable))
 
     constraintQuery = RemoveConstaint(pgTable)
+    print(constraintQuery)
     ExecuteQuery(pgCon, constraintQuery)
+    pgCon.commit()
 
-    for r in pgCur:
-        #print(r['indexname'])
-        dropIndexQuery = DropIndex(r['indexname'])
+    tableIndices = [x['indexname'] for x in pgCur]
+    #print(tableIndices)
+    #print(set(tableIndices))
+
+    for i in set(tableIndices):
+        dropIndexQuery = DropIndex(i)
         print(dropIndexQuery)
         ExecuteQuery(pgCon, dropIndexQuery)
+     
 
 def WriteFile(filePath, theDictionary):
     """
@@ -167,12 +173,10 @@ def WriteFile(filePath, theDictionary):
     thekeys = list(theDictionary.keys())
     
 
-    fields = list(theDictionary[thekeys[0]].keys())
+    fields = thekeys #list(theDictionary[thekeys[0]].keys())
     theWriter = csv.DictWriter(filePath, fieldnames=fields)
     theWriter.writeheader()
-
-    for k in theDictionary.keys():
-        theWriter.writerow(theDictionary[k])        
+    theWriter.writerow(theDictionary)        
 
 def argument_parser():
     """
@@ -216,7 +220,7 @@ if __name__ == '__main__':
     stopPartitionTable = timeit.default_timer()
     geoIndex = CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, ) )
     bTreeIndex = CreateBTreeIndex(args.tableName, "{}_{}_btree".format(args.tableName, args.shardKey), [args.shardKey])
-    #CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
+    CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
     stopCreateIndices = timeit.default_timer()
     psqlCon.commit()
     
@@ -225,7 +229,7 @@ if __name__ == '__main__':
         ("create_distributed_indices", stopCreateIndices)])
     
     print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
-    print(times) 
+     
     if args.csv:
         WriteFile(args.csv, times)
 
