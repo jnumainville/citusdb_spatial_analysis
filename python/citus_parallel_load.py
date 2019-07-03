@@ -87,6 +87,60 @@ def DropIndex(indexName):
     """
     return "DROP INDEX {};".format(indexName)
 
+def CreateGeomTable(pgTableName, fieldsDict):
+    """
+    Fields Dict is a dictionary that contains the field name (key) and the field type (value) for each field
+
+    CREATE TABLE big_vector.highways (gid bigint, geom_text as geom);
+    """
+    fieldsList = ["%s %s" % (k,fieldsDict[k]) for k in fieldsDict ]
+    return "CREATE TABLE {} ( {} )".format(pgTableName, ", ".join(fieldsList))
+
+def LoadGeomTable(pgCon, geomFile, pgTableName):
+    """
+    This function loads the data into the table
+
+    COPY wheat FROM 'wheat_crop_data.csv' DELIMITER ';' CSV HEADER
+
+    """
+
+    pgCur = pgCon.cursor()
+    print("Copying files")
+
+    ExecuteQuery(pgCon, "\\COPY {} FROM '{}' WITH CSV HEADER DELIMITER ';'".format(pgTableName, geomFile))
+
+    # try:
+    #     pgCur.copy_from(geomFile, pgTableName, sep=";")
+    # except:
+    #     #skipping header
+        
+    #     pgCur.copy_from(geomFile, pgTableName, sep=";")
+
+    stopLoadShapefile = timeit.default_timer()
+
+    return stopLoadShapefile
+
+def AddGeom(pgTable):
+    """
+    This function creates the geometry field name geom
+
+    ALTER TABLE big_vector.highways ADD geom geometry;
+    """
+
+    return "ALTER TABLE {} ADD geom geometry;".format(pgTable)
+
+def CreateGeom(pgCon, pgTable, geomField, srid):
+    """
+    This function creates the geometry field name geom
+
+    UPDATE TABLE big_vector.highways SET geom  = ST_SRID(GeomFromText(geom_text), 4326);
+    """
+    createGeomStart = timeit.default_timer()
+    ExecuteQuery(pgCon,"UPDATE TABLE {} SET geom = ST_SRID(GeomFromText( {} ), {});".format(pgTable, geomField, srid) )
+    createGeomStop = timeit.default_timer()
+
+    return createGeomStop-createGeomStart
+
 
 def LoadShapefile(shapeFilePath, pgTableName, connectionDict, srid=4326):
     """
@@ -186,55 +240,85 @@ def argument_parser():
 
     parser = argparse.ArgumentParser(description= "Module for loading data into CitusDB")    
     
-    parser.add_argument("-shp", required=True, help="Input file path for the shapefile", dest="shapefilePath")    
-    parser.add_argument("-s", required=True, help="Input SRID number", dest="srid")    
-    
-    parser.add_argument("-t", required=True, type=str, help="Name of CituSDB table", dest="tableName")
-    parser.add_argument("-f", required=False, type=str, help="Field Name for sharded table", dest="shardKey")
-    parser.add_argument("-n", required=False, type=str, help="Number of partitions", dest="partitions")
-    #All of the required connection informaiton
+    #All of the required connection information
     parser.add_argument("-d", required=True, type=str, help="Name of database", dest="db")
-    parser.add_argument("-host", required=True, type=str, help="Host of database", dest="host")
+    parser.add_argument("--host", required=True, type=str, help="Host of database", dest="host")
     parser.add_argument("-p", required=True, type=int, help="port number of citusDB", dest="port")   
     parser.add_argument("-u", required=True, type=str, help="db username", dest="user")
     
     parser.add_argument("-o", required=False, type=argparse.FileType('w'), help="The file path of the csv", dest="csv", default=None)
 
+    subparser = parser.add_subparsers(help='sub-command help', dest="command")
+    #Adding sub parsers requires the order of the arguments to be in a particular pattern
+    #Big parser arguments first, sub parser arguments second
+    shapefileParser = subparser.add_parser('shapefile')
+    
+    shapefileParser.add_argument("--shp", required=True, help="Input file path for the shapefile", dest="shapefilePath")    
+
+    csvParser = subparser.add_parser('csv')
+    csvParser.add_argument("--txt", required=True, type=str, help="Input file path for the csv", dest="inCSV") 
+    csvParser.add_argument("--geom", required=True, help="The field name for the geometry text", dest="geom") 
+    csvParser.add_argument("--keyvalue", required=True, action='append', type=lambda kv: kv.split("="), dest='keyvalues')   
+
+
+    parser.add_argument("-s", required=True, help="Input SRID number", dest="srid")    
+    parser.add_argument("-t", required=True, type=str, help="Name of CituSDB table", dest="tableName")
+    parser.add_argument("-f", required=False, type=str, help="Field Name for sharded table", dest="shardKey")
+    parser.add_argument("-n", required=False, type=str, help="Number of partitions", dest="partitions")
+
+
     return parser
         
 
 if __name__ == '__main__':
-    args = argument_parser().parse_args()
-    myConnection = {"host": args.host, "db": args.db, "port": args.port, "user": args.user}
-    #myConnection = {"host": "localhost", "db": "research", "port": args.port, "user": "david"}
-    start = timeit.default_timer()
-    LoadShapefile(args.shapefilePath, args.tableName, myConnection, args.srid)
-    stopLoadShapefile = timeit.default_timer()
-    psqlCon = CreateConnection(myConnection)
-    RemoveIndices(psqlCon, args.tableName)
-    psqlCon.commit()
-    stopRemoveIndices = timeit.default_timer()
-    shardQuery = SetShardCount(args.db, args.partitions)
-    PartitionTable(psqlCon, args.tableName, args.shardKey, shardQuery)
-    psqlCon.commit()
-    stopPartitionTable = timeit.default_timer()
-    geoIndex = CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, ) )
-    bTreeIndex = CreateBTreeIndex(args.tableName, "{}_{}_btree".format(args.tableName, args.shardKey), [args.shardKey])
-    CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
-    stopCreateIndices = timeit.default_timer()
-    psqlCon.commit()
-    
-    times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
-        ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
-        ("create_distributed_indices", stopCreateIndices-stopPartitionTable)])
-    
-    print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
-     
-    if args.csv:
-        WriteFile(args.csv, times)
 
-    print(times)
+    args, unknown = argument_parser().parse_known_args()
     
-    psqlCon.close()
+    
+    myConnection = {"host": args.host, "db": args.db, "port": args.port, "user": args.user}
+    # #myConnection = {"host": "localhost", "db": "research", "port": args.port, "user": "david"}
+    
+    start = timeit.default_timer()
+    psqlCon = CreateConnection(myConnection)
+    if args.command == 'shapefile':
+        LoadShapefile(args.shapefilePath, args.tableName, myConnection, args.srid)
+        stopLoadShapefile = timeit.default_timer()
+        RemoveIndices(psqlCon, args.tableName)
+        stopRemoveIndices = timeit.default_timer()
+    elif args.command == 'csv':
+        csvDict = OrderedDict([(i[0],i[1]) for i in args.keyvalues])
+        createQuery  = CreateGeomTable(args.tableName, csvDict)
+        ExecuteQuery(psqlCon, createQuery)
+        psqlCon.commit()
+        LoadGeomTable(psqlCon, args.inCSV, args.tableName)
+        
+        
+
+    # psqlCon = CreateConnection(myConnection)
+    
+    # psqlCon.commit()
+    
+    # shardQuery = SetShardCount(args.db, args.partitions)
+    # PartitionTable(psqlCon, args.tableName, args.shardKey, shardQuery)
+    # psqlCon.commit()
+    # stopPartitionTable = timeit.default_timer()
+    # geoIndex = CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, ) )
+    # bTreeIndex = CreateBTreeIndex(args.tableName, "{}_{}_btree".format(args.tableName, args.shardKey), [args.shardKey])
+    # CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
+    # stopCreateIndices = timeit.default_timer()
+    # psqlCon.commit()
+    
+    # times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
+    #     ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
+    #     ("create_distributed_indices", stopCreateIndices-stopPartitionTable)])
+    
+    # print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
+     
+    # if args.csv:
+    #     WriteFile(args.csv, times)
+
+    # print(times)
+    
+    # psqlCon.close()
 
     
