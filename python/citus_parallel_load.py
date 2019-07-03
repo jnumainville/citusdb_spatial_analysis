@@ -226,7 +226,7 @@ if __name__ == '__main__':
     
     times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
         ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
-        ("create_distributed_indices", stopCreateIndices)])
+        ("create_distributed_indices", stopCreateIndices-stopPartitionTable)])
     
     print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
      
