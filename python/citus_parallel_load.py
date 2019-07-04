@@ -286,18 +286,17 @@ if __name__ == '__main__':
         stopLoadShapefile = timeit.default_timer()
         RemoveIndices(psqlCon, args.tableName)
         stopRemoveIndices = timeit.default_timer()
+        psqlCon.commit()
     elif args.command == 'csv':
         csvDict = OrderedDict([(i[0],i[1]) for i in args.keyvalues])
         createQuery  = CreateGeomTable(args.tableName, csvDict)
         ExecuteQuery(psqlCon, createQuery)
         psqlCon.commit()
         LoadGeomTable(psqlCon, args.inCSV, args.tableName)
-        
-        
-
-    # psqlCon = CreateConnection(myConnection)
-    
-    # psqlCon.commit()
+        psqlCon.commit()
+        ExecuteQuery(psqlCon, AddGeom(args.tableName))
+        CreateGeom(psqlCon, args.tableName, args.geom, args.srid)    
+        psqlCon.commit()
     
     # shardQuery = SetShardCount(args.db, args.partitions)
     # PartitionTable(psqlCon, args.tableName, args.shardKey, shardQuery)
