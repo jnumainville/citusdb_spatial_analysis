@@ -107,7 +107,7 @@ def LoadGeomTable(pgCon, geomFile, pgTableName):
     pgCur = pgCon.cursor()
     print("Copying files")
 
-    ExecuteQuery(pgCon, "\\COPY {} FROM '{}' WITH CSV HEADER DELIMITER ';'".format(pgTableName, geomFile))
+    pgCur.copy_expert("\\COPY {} FROM '{}' WITH CSV HEADER DELIMITER ';'".format(pgTableName, geomFile))
 
     # try:
     #     pgCur.copy_from(geomFile, pgTableName, sep=";")
