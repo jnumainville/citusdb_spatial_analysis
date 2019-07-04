@@ -134,10 +134,10 @@ def CreateGeom(pgCon, pgTable, geomField, srid):
     """
     This function creates the geometry field name geom
 
-    UPDATE TABLE big_vector.highways SET geom  = ST_SRID(GeomFromText(geom_text), 4326);
+    UPDATE  big_vector.highways SET geom  = ST_SetSRID(ST_GeomFromText(geom_text), 4326);
     """
     createGeomStart = timeit.default_timer()
-    ExecuteQuery(pgCon,"UPDATE TABLE {} SET geom = ST_SRID(GeomFromText( {} ), {});".format(pgTable, geomField, srid) )
+    ExecuteQuery(pgCon,"UPDATE {} SET geom = ST_SetSRID(ST_GeomFromText( {} ), {});".format(pgTable, geomField, srid) )
     createGeomStop = timeit.default_timer()
 
     return createGeomStop-createGeomStart
