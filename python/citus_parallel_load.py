@@ -16,7 +16,7 @@ def CreateConnection(theConnectionDict):
     This method will get a connection. Need to make sure that the DB is set correctly.
     """
     
-    connection = psycopg2.connect(host=theConnectionDict['host'], database=theConnectionDict['db'], user=theConnectionDict['user'], port=theConnectionDict['port'], password='haynes')
+    connection = psycopg2.connect(host=theConnectionDict['host'], database=theConnectionDict['db'], user=theConnectionDict['user'], port=theConnectionDict['port'])
 
     return connection
 
@@ -241,8 +241,8 @@ def argument_parser():
     parser = argparse.ArgumentParser(description= "Module for loading data into CitusDB")    
     
     #All of the required connection information
-    parser.add_argument("-d", required=True, type=str, help="Name of database", dest="db")
     parser.add_argument("--host", required=True, type=str, help="Host of database", dest="host")
+    parser.add_argument("-d", required=True, type=str, help="Name of database", dest="db")
     parser.add_argument("-p", required=True, type=int, help="port number of citusDB", dest="port")   
     parser.add_argument("-u", required=True, type=str, help="db username", dest="user")
     
