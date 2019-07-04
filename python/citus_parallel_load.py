@@ -107,14 +107,15 @@ def LoadGeomTable(pgCon, geomFile, pgTableName):
     pgCur = pgCon.cursor()
     print("Copying files")
     with open(geomFile, 'r') as f:
-        pgCur.copy_expert("\\COPY {} FROM STDIN WITH CSV HEADER DELIMITER ';'".format(pgTableName), f)
-
-    # try:
-    #     pgCur.copy_from(geomFile, pgTableName, sep=";")
-    # except:
-    #     #skipping header
         
-    #     pgCur.copy_from(geomFile, pgTableName, sep=";")
+        #pgCur.copy_expert("\\COPY {} FROM STDIN WITH CSV HEADER DELIMITER ';'".format(pgTableName), f)
+
+        try:
+            pgCur.copy_from(f, pgTableName, sep=";")
+        except:
+            #skipping header
+            f.readline()
+            pgCur.copy_from(f, pgTableName, sep=";")
 
     stopLoadShapefile = timeit.default_timer()
 
