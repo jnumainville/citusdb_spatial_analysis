@@ -297,7 +297,7 @@ if __name__ == '__main__':
         RemoveIndices(psqlCon, args.tableName)
         stopRemoveIndices = timeit.default_timer()
         psqlCon.commit()
-        theGeomField = "geom"
+        #theGeomField = "geom"
     elif args.command == 'csv':
         csvDict = OrderedDict([(i[0],i[1]) for i in args.keyvalues])
         createQuery  = CreateGeomTable(args.tableName, csvDict)
@@ -308,7 +308,7 @@ if __name__ == '__main__':
         ExecuteQuery(psqlCon, AddGeom(args.tableName))
         CreateGeom(psqlCon, args.tableName, args.geom, args.srid)    
         psqlCon.commit()
-        theGeomField = args.geom
+        #theGeomField = args.geom
     
     if args.dist:
         print("Distributing dataset by column {}".format(args.shardKey))
@@ -322,9 +322,9 @@ if __name__ == '__main__':
         stopCreateIndices = timeit.default_timer()
         psqlCon.commit()
     else:
-        print("reference table")
+        print("Creating Reference table")
         ExecuteQuery(psqlCon, CreateReferenceTable(args.tableName))
-        ExecuteQuery(psqlCon, CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, theGeomField) ):
+        ExecuteQuery(psqlCon, CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName), "geom") )
 
     times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
         ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
