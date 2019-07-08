@@ -239,7 +239,11 @@ def argument_parser():
     """
     import argparse
 
-    parser = argparse.ArgumentParser(description= "Module for loading data into CitusDB")    
+    parser = argparse.ArgumentParser(description= "Module for loading data into CitusDB") 
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--distributed',action='store_true', dest="dist")
+    group.add_argument('--reference',action='store_false', dest="dist")   
     
     #All of the required connection information
     parser.add_argument("--host", required=True, type=str, help="Host of database", dest="host")
@@ -274,7 +278,7 @@ def argument_parser():
 if __name__ == '__main__':
 
     args, unknown = argument_parser().parse_known_args()
-    
+    print(args)
     
     myConnection = {"host": args.host, "db": args.db, "port": args.port, "user": args.user}
     # #myConnection = {"host": "localhost", "db": "research", "port": args.port, "user": "david"}
@@ -298,27 +302,30 @@ if __name__ == '__main__':
         CreateGeom(psqlCon, args.tableName, args.geom, args.srid)    
         psqlCon.commit()
     
-    # shardQuery = SetShardCount(args.db, args.partitions)
-    # PartitionTable(psqlCon, args.tableName, args.shardKey, shardQuery)
-    # psqlCon.commit()
-    # stopPartitionTable = timeit.default_timer()
-    # geoIndex = CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, ) )
-    # bTreeIndex = CreateBTreeIndex(args.tableName, "{}_{}_btree".format(args.tableName, args.shardKey), [args.shardKey])
-    # CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
-    # stopCreateIndices = timeit.default_timer()
-    # psqlCon.commit()
-    
-    # times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
-    #     ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
-    #     ("create_distributed_indices", stopCreateIndices-stopPartitionTable)])
-    
-    # print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
-     
-    # if args.csv:
-    #     WriteFile(args.csv, times)
+    if args.dist:
+        shardQuery = SetShardCount(args.db, args.partitions)
+        PartitionTable(psqlCon, args.tableName, args.shardKey, shardQuery)
+        psqlCon.commit()
+        stopPartitionTable = timeit.default_timer()
+        geoIndex = CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, ) )
+        bTreeIndex = CreateBTreeIndex(args.tableName, "{}_{}_btree".format(args.tableName, args.shardKey), [args.shardKey])
+        CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
+        stopCreateIndices = timeit.default_timer()
+        psqlCon.commit()
+    else:
+        print("reference table")
 
-    # print(times)
+    times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
+        ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
+        ("create_distributed_indices", stopCreateIndices-stopPartitionTable)])
     
-    # psqlCon.close()
+    print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
+     
+    if args.csv:
+        WriteFile(args.csv, times)
+
+    print(times)
+    
+    psqlCon.close()
 
     
