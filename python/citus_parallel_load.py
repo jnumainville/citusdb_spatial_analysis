@@ -297,21 +297,27 @@ if __name__ == '__main__':
         RemoveIndices(psqlCon, args.tableName)
         stopRemoveIndices = timeit.default_timer()
         psqlCon.commit()
-        #theGeomField = "geom"
+        loadingDict = OrderedDict([  ("shapefile", args.shapefilePath), ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile) ])
+
     elif args.command == 'csv':
         csvDict = OrderedDict([(i[0],i[1]) for i in args.keyvalues])
+        startLoadCSV = timeit.default_timer()
         createQuery  = CreateGeomTable(args.tableName, csvDict)
         ExecuteQuery(psqlCon, createQuery)
         psqlCon.commit()
         LoadGeomTable(psqlCon, args.inCSV, args.tableName)
         psqlCon.commit()
+        stopLoadCSV = timeit.default_timer()
         ExecuteQuery(psqlCon, AddGeom(args.tableName))
         CreateGeom(psqlCon, args.tableName, args.geom, args.srid)    
         psqlCon.commit()
-        #theGeomField = args.geom
+        stopBuildGeom = timeit.default_timer()
+        
+        loadingDict = OrderedDict([  ("geomtable", args.inCSV), ("load_time", stopLoadCSV-startLoadCSV), ("build_geom", stopBuildGeom-stopLoadCSV) ])
     
     if args.dist:
         print("Distributing dataset by column {}".format(args.shardKey))
+        startDistribution = timeit.default_timer()
         shardQuery = SetShardCount(args.db, args.partitions)
         PartitionTable(psqlCon, args.tableName, args.shardKey, shardQuery)
         psqlCon.commit()
@@ -321,14 +327,20 @@ if __name__ == '__main__':
         CreateIndices(psqlCon, [geoIndex, bTreeIndex] )
         stopCreateIndices = timeit.default_timer()
         psqlCon.commit()
+        indicesDict = OrderedDict([ ("full_time", stopCreateIndices-start),  ("partition_time", stopPartitionTable-startDistribution), ("create_distributed_indices", stopCreateIndices-stopPartitionTable) ])
+
     else:
         print("Creating Reference table")
+        startDistributeTable = timeit.default_timer()
         ExecuteQuery(psqlCon, CreateReferenceTable(args.tableName))
+        stopDistributeTable = timeit.default_timer()
         ExecuteQuery(psqlCon, CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName), "geom") )
+        stopCreateIndices = timeit.default_timer()
+        indicesDict = OrderedDict([ ("full_time", stopCreateIndices-start),  ("distribution_time", stopDistributeTable-startDistributeTable), ("create_distributed_indices", stopCreateIndices-stopDistributeTable) ])
 
-    times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
-        ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
-        ("create_distributed_indices", stopCreateIndices-stopPartitionTable)])
+    times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName) ])
+    times.update(loadingDict)
+    times.update(indicesDict)
     
     print("All Processes have been completed: {:.2f} seconds".format(stopCreateIndices-start))
      
