@@ -166,6 +166,12 @@ def LoadShapefile(shapeFilePath, pgTableName, connectionDict, srid=4326):
     return (shapeFilePath, pgTableName)
 
 
+def CreateReferenceTable(tableName):
+    """
+    SELECT create_reference_table('states');
+    """
+    return "SELECT create_reference_table('{}');".format(tableName)
+
 def CreateGeoIndex(tableName, indexName, geomField="geom"):
     """
     CREATE INDEX clicked_at_idx ON tableName USING GIST(geom);
@@ -291,6 +297,7 @@ if __name__ == '__main__':
         RemoveIndices(psqlCon, args.tableName)
         stopRemoveIndices = timeit.default_timer()
         psqlCon.commit()
+        theGeomField = "geom"
     elif args.command == 'csv':
         csvDict = OrderedDict([(i[0],i[1]) for i in args.keyvalues])
         createQuery  = CreateGeomTable(args.tableName, csvDict)
@@ -301,8 +308,10 @@ if __name__ == '__main__':
         ExecuteQuery(psqlCon, AddGeom(args.tableName))
         CreateGeom(psqlCon, args.tableName, args.geom, args.srid)    
         psqlCon.commit()
+        theGeomField = args.geom
     
     if args.dist:
+        print("Distributing dataset by column {}".format(args.shardKey))
         shardQuery = SetShardCount(args.db, args.partitions)
         PartitionTable(psqlCon, args.tableName, args.shardKey, shardQuery)
         psqlCon.commit()
@@ -314,6 +323,8 @@ if __name__ == '__main__':
         psqlCon.commit()
     else:
         print("reference table")
+        ExecuteQuery(psqlCon, CreateReferenceTable(args.tableName))
+        ExecuteQuery(psqlCon, CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName, theGeomField) ):
 
     times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName), ("shapefile", args.shapefilePath), ("full_time", stopCreateIndices-start), \
         ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile), ("partition_time", stopPartitionTable-stopRemoveIndices),\
