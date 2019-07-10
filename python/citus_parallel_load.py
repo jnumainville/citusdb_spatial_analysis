@@ -25,6 +25,7 @@ def ExecuteQuery(pgCon, query):
     pgCur = extras.DictCursor(pgCon)
     try:
         pgCur.execute(query)
+        print(query)
     except:
         print("ERROR...", query)
     
@@ -137,7 +138,7 @@ def CreateGeom(pgCon, pgTable, geomField, srid):
     UPDATE  big_vector.highways SET geom  = ST_SetSRID(ST_GeomFromText(geom_text), 4326);
     """
     createGeomStart = timeit.default_timer()
-    ExecuteQuery(pgCon,"UPDATE {} SET geom = ST_SetSRID(ST_GeomFromText( {} ), {});".format(pgTable, geomField, srid) )
+    ExecuteQuery(pgCon,"UPDATE {} SET geom = ST_GeomFromText( {} , {});".format(pgTable, geomField, srid) )
     createGeomStop = timeit.default_timer()
 
     return createGeomStop-createGeomStart
@@ -284,7 +285,7 @@ def argument_parser():
 if __name__ == '__main__':
 
     args, unknown = argument_parser().parse_known_args()
-    print(args)
+    #print(args)
     
     myConnection = {"host": args.host, "db": args.db, "port": args.port, "user": args.user}
     # #myConnection = {"host": "localhost", "db": "research", "port": args.port, "user": "david"}
@@ -309,6 +310,7 @@ if __name__ == '__main__':
         psqlCon.commit()
         stopLoadCSV = timeit.default_timer()
         ExecuteQuery(psqlCon, AddGeom(args.tableName))
+        psqlCon.commit()
         CreateGeom(psqlCon, args.tableName, args.geom, args.srid)    
         psqlCon.commit()
         stopBuildGeom = timeit.default_timer()
@@ -333,9 +335,11 @@ if __name__ == '__main__':
         print("Creating Reference table")
         startDistributeTable = timeit.default_timer()
         ExecuteQuery(psqlCon, CreateReferenceTable(args.tableName))
+        psqlCon.commit()
         stopDistributeTable = timeit.default_timer()
         ExecuteQuery(psqlCon, CreateGeoIndex(args.tableName, "{}_geom_gist".format(args.tableName), "geom") )
         stopCreateIndices = timeit.default_timer()
+        psqlCon.commit()
         indicesDict = OrderedDict([ ("full_time", stopCreateIndices-start),  ("distribution_time", stopDistributeTable-startDistributeTable), ("create_distributed_indices", stopCreateIndices-stopDistributeTable) ])
 
     times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName) ])
