@@ -90,7 +90,8 @@ def argument_parser():
     pointPolyJoin_subparser.add_argument("--point", required=False, help="Table name of the point dataset", dest="point")
     pointPolyJoin_subparser.add_argument("--polygon", required=False, help="Table name of the polygon dataset", dest="polygon")
 
-
+    centroid_subparser = subparser.add_parser('centroid')
+    centroid_subparser.add_argument("--polygon", required=False, help="Table name of the polygon dataset", dest="polygon")
     # count_subparser = subparser.add_parser('count')
     # count_subparser.set_defaults(func=localDatasetPrep)
     
@@ -121,11 +122,11 @@ if __name__ == '__main__':
     psqlCon = CreateConnection(myConnection)
     timings = OrderedDict()
     
+    pointDatasets = ["%s_%s" % (i, size) for i in ["random", "synthetic"] for size in [1,10,50,100] ]
+    polygonDatasets = ["state", "county", "tracts", "blocks"]    
     
     if args.command == "point_polygon_join":
-        
-        pointDatasets = ["random", "synthetic"]
-        polygonDatasets = ["state", "county", "tracts", "blocks"]
+            
         datasets = args.func(pointDatasets, polygonDatasets)
         queries = PointPolygonQuery(datasets)
         print(queries)    
@@ -140,6 +141,6 @@ if __name__ == '__main__':
             # tables = "%s_%s" % ()
             timings[(r,d["point_table"], d["poly_table"])] = OrderedDict([ ("point_table", d["point_table"]), ("poly_table", d["poly_table"]), ("query_time", queryTime)  ])
 
-    print(timings)
+    #print(timings)
     if args.csv: WriteFile(args.csv, timings)
     print("Finished")
