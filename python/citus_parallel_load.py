@@ -342,7 +342,7 @@ if __name__ == '__main__':
         psqlCon.commit()
         indicesDict = OrderedDict([ ("full_time", stopCreateIndices-start),  ("distribution_time", stopDistributeTable-startDistributeTable), ("create_distributed_indices", stopCreateIndices-stopDistributeTable) ])
 
-    times = OrderedDict( [("connectionInfo", "XSEDE"), ("dataset", args.tableName) ])
+    times = OrderedDict( [("connectionInfo", "XSEDE"), ("platform", "CitusDB"), ("dataset", args.tableName) ])
     times.update(loadingDict)
     times.update(indicesDict)
     
