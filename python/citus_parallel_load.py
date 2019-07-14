@@ -24,7 +24,7 @@ def ExecuteQuery(pgCon, query):
     
     pgCur = extras.DictCursor(pgCon)
     try:
-        pgCur.execute(query)
+        #pgCur.execute(query)
         print(query)
     except:
         print("ERROR...", query)
