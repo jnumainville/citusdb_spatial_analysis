@@ -37,7 +37,7 @@ def PointPolygonQuery(datasets):
     """
     completeQuery = []
     for d in datasets:
-        query = """ SELECT b.gid, count(p.gid) as num_features FROM {point_table} p INNER JOIN {poly_table} b ON ST_WITHIN(p.geom, b.geom) GROUP BY b.gid""".format(**d)
+        query = """SELECT b.gid, b.place_name, count(p.gid) as num_features FROM {point_table} p INNER JOIN {poly_table} b ON ST_WITHIN(p.geom, b.geom) GROUP BY b.gid, b.place_name""".format(**d)
         #b.{point_column_name},
         completeQuery.append(query)
         
@@ -58,7 +58,7 @@ def WriteFile(filePath, theDictionary):
     
     thekeys = list(theDictionary.keys())
     
-    with open(filePath, 'w') as csvFile:
+    with open(filePath, 'w', newline="\n") as csvFile:
         fields = list(theDictionary[thekeys[0]].keys())
         theWriter = csv.DictWriter(csvFile, fieldnames=fields)
         theWriter.writeheader()
@@ -73,7 +73,7 @@ def argument_parser():
     import argparse
 
     parser = argparse.ArgumentParser(description= "Analysis Script for running Spatial Analytics on CitusDB")  
-    parser.add_argument("-csv", required =False, help="Output timing results into CSV file", dest="csv", default=None)  
+    parser.add_argument("-o", required =False, help="Output timing results into CSV file", dest="csv", default=None)  
 
     parser.add_argument("-r", required =False, type=int, help="Number of runs", dest="runs", default=3)  
    
@@ -122,25 +122,28 @@ if __name__ == '__main__':
     psqlCon = CreateConnection(myConnection)
     timings = OrderedDict()
     
-    pointDatasets = ["%s_%s" % (i, size) for i in ["random", "synthetic"] for size in [1,10,50,100] ]
-    polygonDatasets = ["state", "county", "tracts", "blocks"]    
+    pointDatasets = ["%s_%s" % (i, size) for i in ["random","synthetic"] for size in [1,10,50,100] ] # [1,10,50,100]
+    polygonDatasets = ["states", "counties", "tracts", "blocks"]    
     
     if args.command == "point_polygon_join":
             
         datasets = args.func(pointDatasets, polygonDatasets)
         queries = PointPolygonQuery(datasets)
-        print(queries)    
+        #print(queries)    
 
     
     for query, d in zip(queries, datasets):
+        print(query)
         for r in range(1,args.runs+1):
             start = timeit.default_timer()
-            #ExecuteQuery(psqlCon, query)
+            ExecuteQuery(psqlCon, query)
             stop = timeit.default_timer()
             queryTime = stop-start
             # tables = "%s_%s" % ()
-            timings[(r,d["point_table"], d["poly_table"])] = OrderedDict([ ("point_table", d["point_table"]), ("poly_table", d["poly_table"]), ("query_time", queryTime)  ])
+            timings[(r,d["point_table"], d["poly_table"])] = OrderedDict([ ("point_table", d["point_table"]), ("poly_table", d["poly_table"]), ("query_time", queryTime), ("run",r)  ])
 
-    #print(timings)
-    if args.csv: WriteFile(args.csv, timings)
+    print(timings)
+    if args.csv:
+        print("Writing to: %s" % (args.csv)) 
+        WriteFile(args.csv, timings)
     print("Finished")
