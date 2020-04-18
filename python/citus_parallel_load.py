@@ -9,6 +9,7 @@ import psycopg2, timeit, csv
 import subprocess
 from psycopg2 import extras
 from collections import OrderedDict
+import pandas as pd
 
 
 def CreateConnection(theConnectionDict):
@@ -240,6 +241,19 @@ def WriteFile(filePath, theDictionary):
     theWriter.writeheader()
     theWriter.writerow(theDictionary)        
 
+
+def convert_type(type):
+    """
+        Convert from pandas to postgresql type
+    """
+    if type == 'int64':
+        return 'bigint'
+    if type == 'int32':
+        return
+    if type == 'object':
+        return 'text'
+
+
 def argument_parser():
     """
     Parse arguments and return Arguments
@@ -274,13 +288,13 @@ def argument_parser():
 
 
     parser.add_argument("-s", required=True, help="Input SRID number", dest="srid")    
-    parser.add_argument("-t", required=True, type=str, help="Name of CituSDB table", dest="tableName")
+    parser.add_argument("-t", required=True, type=str, help="Name of CitusDB table", dest="tableName")
     parser.add_argument("-f", required=False, type=str, help="Field Name for sharded table", dest="shardKey")
     parser.add_argument("-n", required=False, type=str, help="Number of partitions", dest="partitions")
 
 
     return parser
-        
+
 
 if __name__ == '__main__':
 
@@ -301,7 +315,9 @@ if __name__ == '__main__':
         loadingDict = OrderedDict([  ("shapefile", args.shapefilePath), ("load_time", stopLoadShapefile-start), ("remove_indices", stopRemoveIndices-stopLoadShapefile) ])
 
     elif args.command == 'csv':
-        csvDict = OrderedDict([(i[0],i[1]) for i in args.keyvalues])
+        # read in single row to infer type of data
+        d = pd.read_csv(args.inCSV, nrows=1, delimiter=';')
+        csvDict = OrderedDict([(c, convert_type(t)) for (c, t) in zip(d.columns, d.dtypes)])
         startLoadCSV = timeit.default_timer()
         createQuery  = CreateGeomTable(args.tableName, csvDict)
         ExecuteQuery(psqlCon, createQuery)

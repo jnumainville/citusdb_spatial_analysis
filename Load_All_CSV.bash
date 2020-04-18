@@ -15,13 +15,6 @@ do
       "csv"
       "--txt /group/vector_datasets/geom_csv/${vector}.csv"
       "--geom geom_text"
-      "--keyvalue gid=bigint"
-      "--keyvalue state_id=integer"
-      "--keyvalue county_id=integer"
-      "--keyvalue tract_id=integer"
-      "--keyvalue block_id=integer"
-      "--keyvalue place_name=text"
-      "--keyvalue geom_text=text"
 		)
 		python3 citus_parallel_load.py  "${args[@]}"
 done
