@@ -284,8 +284,6 @@ def argument_parser():
     csvParser = subparser.add_parser('csv')
     csvParser.add_argument("--txt", required=True, type=str, help="Input file path for the csv", dest="inCSV") 
     csvParser.add_argument("--geom", required=True, help="The field name for the geometry text", dest="geom") 
-    csvParser.add_argument("--keyvalue", required=True, action='append', type=lambda kv: kv.split("="), dest='keyvalues')   
-
 
     parser.add_argument("-s", required=True, help="Input SRID number", dest="srid")    
     parser.add_argument("-t", required=True, type=str, help="Name of CitusDB table", dest="tableName")
